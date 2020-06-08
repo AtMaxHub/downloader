@@ -1,0 +1,23 @@
+########################################################
+###FREEMARKER (FreeMarkerAutoConfiguration)
+########################################################
+
+spring:
+  freemarker:
+    template-loader-path: classpath:/templates/
+    cache: true
+    check-template-location: true
+    charset: utf-8
+    content-type: text/html
+    allow-request-override: false
+    expose-request-attributes: false
+    expose-session-attributes: false
+    expose-spring-macro-helpers: false
+    suffix: .ftl
+  #spring.freemarker.prefix=
+  #spring.freemarker.request-context-attribute=
+  #spring.freemarker.settings.*=
+#comma-separated list
+#spring.freemarker.view-names= # whitelist of view names that can be resolved
+  thymeleaf:
+    cache: false
