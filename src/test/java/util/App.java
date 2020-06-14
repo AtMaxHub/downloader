@@ -86,7 +86,7 @@ public class App {
 
         // 2：下载 aes-key
         if(AES_KEY_URL != null){
-             AES_KEY = HttpClientUtil.getAESKey(AES_KEY_URL);
+             AES_KEY = new HttpClientUtil().getAESKey(AES_KEY_URL);
         }
         // 3：并行下载 ts， 并解密 放入 bytesMap
         //downloadM3U82File(m3U8);

@@ -14,6 +14,15 @@ public class M3U8 {
 	private long endTime;// 结束时间
 	private long startDownloadTime;// 开始下载时间
 	private long endDownloadTime;// 结束下载时间
+	private String referer;
+
+	public String getReferer() {
+		return referer;
+	}
+
+	public void setReferer(String referer) {
+		this.referer = referer;
+	}
 
 	public String getBasepath() {
 		return basepath;

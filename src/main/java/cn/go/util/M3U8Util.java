@@ -1,6 +1,7 @@
 package cn.go.util;
 
 import cn.go.entity.M3U8;
+import cn.go.entity.ReqDto;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
@@ -30,9 +31,8 @@ public class M3U8Util {
 
     private static String prefix = "D:/all.download/java_download_m3u8/" ;
     private static String TEMP_DIR = prefix + "temp";
-    private static String mergeTsPathTempLate = TEMP_DIR + File.separator  + "${FILE_NAME}_" + DateFormatUtils.format(new Date(), "yyyy.MM.dd.HH.mm.ss") +".ts";
     private static String mergeTsPath ;
-    private static volatile String fileNameRegex= "^[a-z0-9A-Z]+";
+
     private static volatile String fileName= null;
     private static String mp4File ;
     public static ConcurrentHashMap<String,String> urlRefererMap = new ConcurrentHashMap<>();
@@ -44,24 +44,25 @@ public class M3U8Util {
     private static final ConcurrentSkipListMap<Integer, File> filesMap = new ConcurrentSkipListMap<>();
 
 
-    public static String download(String url){
-        return download(url, false);
+    public static String download(ReqDto reqDto){
+        return download(reqDto, false);
     }
 
     /**
      * 大文件暂存磁盘; 小文件放内存
      */
-    public static String download(String url, boolean bigFile){
+    public static String download(ReqDto reqDto,  boolean bigFile){
+        String url = reqDto.getM3u8Url();
 
         if(org.apache.commons.lang3.StringUtils.isBlank(url)){
             logger.error("url_is_blank");
             return "url_is_blank";
         }
-
+        String referer = reqDto.getReferer();
 
         // 1：解析m3u8 文件提取 aes-key 和 tsUrl; 同时日志记录 文件内容
         int tryTimes = 0;
-        M3U8 m3U8 = getM3U8ByURL(url);
+        M3U8 m3U8 = getM3U8ByURL(url, referer);
         while (true){
             if(m3U8 == null && tryTimes < tryCount){
                 try {
@@ -70,7 +71,7 @@ public class M3U8Util {
                     e.printStackTrace();
                 }
                 logger.info("tryTimes=[{}]", tryTimes);
-                m3U8 = getM3U8ByURL(url);
+                m3U8 = getM3U8ByURL(url,referer);
                tryCount++;
             }else{
                 break;
@@ -83,9 +84,9 @@ public class M3U8Util {
 
         // 2：下载 aes-key
         if(AES_KEY_URL != null){
-            AES_KEY = HttpClientUtil.getAESKey(AES_KEY_URL);
+            AES_KEY = new HttpClientUtil(referer).getAESKey(AES_KEY_URL);
         }
-
+        String mergeTsPathTempLate = TEMP_DIR + File.separator  + "${FILE_NAME}_" + DateFormatUtils.format(new Date(), "yyyy.MM.dd.HH.mm.ss") +".ts";
         if(bigFile){
             File tfile = new File(TEMP_DIR);
             if (!tfile.exists()) {
@@ -98,9 +99,9 @@ public class M3U8Util {
             // 3：并行下载 ts， 并解密 放入 bytesMap
             gainTs2Memory(m3U8);
             // 4：合并 bytesMap，输出到 MP4 文件
-            mergeMemBytes(mergeTsPathTempLate);
+            mergeMemBytes(reqDto.getFileName(), mergeTsPathTempLate);
         }
-        convert();
+        convert(reqDto.getBitRate());
         return null;
     }
 
@@ -113,7 +114,7 @@ public class M3U8Util {
                 String tsUrl = basePath + m3U8Ts.getUrl();
 //                HttpEntity httpEntity = HttpClientUtil.get(tsUrl);
 //                byte[] inputBytes = IOUtils.toByteArray(httpEntity.getContent());
-                byte[] inputBytes = HttpClientUtil.httpUrl(tsUrl);
+                byte[] inputBytes = new HttpClientUtil(m3u8Entity.getReferer()).httpUrl(tsUrl);
                 byte[] decryptedBytes;
                 if(AES_KEY != null){
                     decryptedBytes = AESFileUtil.decryptedBytes(AES_KEY, AES_IV, inputBytes);
@@ -150,7 +151,7 @@ public class M3U8Util {
             InputStream inputStream = null;
             try {
                 String tsUrl = basePath + m3U8Ts.getUrl();
-                byte[] bytes = HttpClientUtil.getBytes(tsUrl);
+                byte[] bytes = new HttpClientUtil(m3u8Entity.getReferer()).getBytes(tsUrl);
                 byte[] decryptedBytes;
                 if(AES_KEY != null){
                     decryptedBytes = AESFileUtil.decryptedBytes(AES_KEY, AES_IV, bytes);
@@ -186,16 +187,18 @@ public class M3U8Util {
     }
 
     private static String buildFileName(String m3u8URL){
-        fileName = m3u8URL.substring(m3u8URL.lastIndexOf("/") + 1, m3u8URL.indexOf("?"));
+        String tmpFileName = m3u8URL.substring(m3u8URL.lastIndexOf("/") + 1, m3u8URL.indexOf("?"));
+        String fileNameRegex = "^[a-z0-9A-Z]+";
         Pattern pattern = Pattern.compile(fileNameRegex);
-        Matcher matcher = pattern.matcher(fileName);
+        Matcher matcher = pattern.matcher(tmpFileName);
         if(matcher.find()){
             return matcher.group();
         }
-        return fileName;
+        return tmpFileName;
     }
 
-    public static M3U8 getM3U8ByURL(String m3u8URL) {
+    public static M3U8 getM3U8ByURL(String m3u8URL, String  referer) {
+
         if(org.apache.commons.lang3.StringUtils.isBlank(m3u8URL)){
             logger.error("m3u8URL_is_null");
             return null;
@@ -205,8 +208,9 @@ public class M3U8Util {
             fileName = buildFileName(m3u8URL);
             M3U8 m3U8 = new M3U8();
             m3U8.setBasepath(basePath);
+            m3U8.setReferer(referer);
 
-            HttpEntity httpEntity = HttpClientUtil.get(m3u8URL);
+            HttpEntity httpEntity = new HttpClientUtil(referer).get(m3u8URL);
             if(httpEntity == null){
                 logger.error("m3u8URL=[{}], get_m3u8_txt_return_null", m3u8URL);
                 return null;
@@ -251,7 +255,7 @@ public class M3U8Util {
                     continue;
                 }
                 if (line.endsWith("m3u8")) {
-                    return getM3U8ByURL(basePath + line);
+                    return getM3U8ByURL(basePath + line, referer);
                 }
                 if(line.contains(question_mark)){
                     String file = line.substring(0, line.indexOf(question_mark));
@@ -269,13 +273,15 @@ public class M3U8Util {
     }
 
 
-    private static void mergeMemBytes( String resultPath) {
-        if(fileName != null){
-            resultPath = resultPath.replace("${FILE_NAME}", fileName);
-            mergeTsPath = resultPath;
-            mp4File = resultPath.replace(".ts", ".mp4");
+    private static void mergeMemBytes(String customFileName, String resultPath) {
+        String  diskFilePath =  resultPath.replace("${FILE_NAME}", fileName);
+        if(org.apache.commons.lang3.StringUtils.isNoneBlank(customFileName)){
+            diskFilePath = resultPath.replace("${FILE_NAME}", customFileName);
         }
-        File resultFile = new File(resultPath);
+        mergeTsPath = diskFilePath;
+        mp4File = diskFilePath.replace(".ts", ".mp4");
+
+        File resultFile = new File(diskFilePath);
         try {
             FileOutputStream fileOutputStream = new FileOutputStream(resultFile, true);
             bytesMap.forEach((seqNo, bytes) -> {
@@ -332,7 +338,8 @@ public class M3U8Util {
         return true;
     }
 
-    private static void convert(){
+    private static void convert(String bitRate){
+
 
         URL resource = ClassLoader.getSystemResource("ffmpeg-3.4.1.exe");
         String absolutePath = null;
@@ -348,16 +355,24 @@ public class M3U8Util {
         String h264 = absolutePath + " -y -i ${TS_FILE} -vcodec copy -acodec copy -vbsf h264_mp4toannexb ${MP4_FILE}";
 
         // 这个方式转换慢但是生成的 mp4 文件小
-        String acc = absolutePath +" -y -i ${TS_FILE} -c:v libx264 -c:a copy -bsf:a aac_adtstoasc ${MP4_FILE}";
+        String aac = absolutePath +" -y -i ${TS_FILE} -c:v libx264 -c:a copy -bsf:a aac_adtstoasc ${MP4_FILE}";
+        String bitStr = aac;
+        String h264Str = "h264";
+        String aacStr = "aac";
 
-        if(mp4File != null){
-            acc = acc.replace("${TS_FILE}", mergeTsPath).replace("${MP4_FILE}", mp4File);
-        }else{
+        if(mp4File == null){
             throw new RuntimeException("mp4File_is_null");
         }
 
+        if(h264Str.equalsIgnoreCase(bitRate)){
+            bitStr = h264.replace("${TS_FILE}", mergeTsPath).replace("${MP4_FILE}", mp4File);
+        }else{
+            bitStr = aac.replace("${TS_FILE}", mergeTsPath).replace("${MP4_FILE}", mp4File);
+        }
 
-        StringTokenizer st = new StringTokenizer(acc);
+        logger.info("ffmpeg_cmd=[{}]", bitStr);
+
+        StringTokenizer st = new StringTokenizer(bitStr);
         String[] cmdarray = new String[st.countTokens()];
         for (int i = 0; st.hasMoreTokens(); i++){
             cmdarray[i] = st.nextToken();

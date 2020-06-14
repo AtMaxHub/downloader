@@ -6,6 +6,25 @@ public class ReqDto {
     @NotBlank(message = "m3u8Url 不能为空")
     private String m3u8Url;
     private String referer;
+    private String fileName;
+    private String bitRate;
+
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    public String getBitRate() {
+        return bitRate;
+    }
+
+    public void setBitRate(String bitRate) {
+        this.bitRate = bitRate;
+    }
 
     public String getM3u8Url() {
         return m3u8Url;
@@ -28,6 +47,8 @@ public class ReqDto {
         return "ReqDto{" +
                 "m3u8Url='" + m3u8Url + '\'' +
                 ", referer='" + referer + '\'' +
+                ", fileName='" + fileName + '\'' +
+                ", bitRate='" + bitRate + '\'' +
                 '}';
     }
 }

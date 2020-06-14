@@ -14,7 +14,6 @@ import java.util.Map;
 
 @Controller
 public class M3u8Controller {
-
     private static Logger logger = LoggerFactory.getLogger(M3u8Controller.class);
 
     @RequestMapping("/ctrl")
@@ -34,10 +33,10 @@ public class M3u8Controller {
     public String download(@Valid ReqDto req, Map<String, Object> map) {
         logger.info(map.toString());
         logger.info(req.toString());
-        HttpClientUtil.referer= req.getReferer();
+        HttpClientUtil.default_referer= req.getReferer();
         String result = null;
         try {
-            result = M3U8Util.download(req.getM3u8Url());
+            result = M3U8Util.download(req);
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
         }

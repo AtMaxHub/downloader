@@ -32,6 +32,7 @@ function post(form, responseCallback) {
             console.log('上传失败', result.status, result.statusText, result.response);
         }
         else if (result.readyState === 4) { //finished
+            downloadCallback(result.response);
             console.log('上传成功', result);
         }
     }
@@ -41,6 +42,5 @@ function post(form, responseCallback) {
     }
 
 $("#submit.btn-block").bind("click", function () {
-    alert('ok');
     download();
 });

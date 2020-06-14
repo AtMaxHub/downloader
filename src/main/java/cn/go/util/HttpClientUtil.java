@@ -24,10 +24,24 @@ import java.util.Set;
 public class HttpClientUtil {
     private static Logger logger = LoggerFactory.getLogger(HttpClientUtil.class);
     public static ThreadLocal<String> refererThreadLocal = new ThreadLocal<>();
-    public static volatile String referer = "";
-    private static int time_out = 30 * 60 * 1000;
+    public static volatile String default_referer ;
+    private  String referer ;
 
-    public static HttpEntity get(String url) {
+    public String getReferer() {
+        if(this.referer != null){
+           return this.referer;
+        }
+        return default_referer;
+    }
+
+    public HttpClientUtil(String referer) {
+        this.referer = referer;
+    }
+
+    public HttpClientUtil() {
+    }
+
+    public HttpEntity get(String url) {
         if (url != null) {
             url = url.trim();
         }
@@ -35,9 +49,8 @@ public class HttpClientUtil {
 
         CloseableHttpClient client = HttpClients.createDefault();
         HttpGet httpGet = new HttpGet(url);
-        //String referer = refererThreadLocal.get();
-        if(referer != null){
-            httpGet.setHeader("Referer", referer);
+        if(getReferer() != null){
+            httpGet.setHeader("Referer", getReferer());
         }
         try {
             CloseableHttpResponse response = client.execute(httpGet);
@@ -48,7 +61,7 @@ public class HttpClientUtil {
         return result;
     }
 
-    public static byte[] getBytes(String url) {
+    public  byte[] getBytes(String url) {
         if (url != null) {
             url = url.trim();
         }
@@ -56,12 +69,12 @@ public class HttpClientUtil {
 
         CloseableHttpClient client = HttpClients.createDefault();
         HttpGet httpGet = new HttpGet(url);
+        int time_out = 30 * 60 * 1000;
         RequestConfig requestConfig = RequestConfig.custom().setSocketTimeout(time_out).setConnectTimeout(time_out).build();//设置请求和传输超时时间
         httpGet.setConfig(requestConfig);
 
-        //String referer = refererThreadLocal.get();
-        if(referer != null){
-            httpGet.setHeader("Referer", referer);
+        if(getReferer() != null){
+            httpGet.setHeader("Referer", getReferer());
         }
         try {
             CloseableHttpResponse response = client.execute(httpGet);
@@ -122,12 +135,16 @@ public class HttpClientUtil {
         return inputBytes;
     }
 
-    public static byte[] httpUrl(String urlStr){
+    public  byte[] httpUrl(String urlStr){
         //String referer = refererThreadLocal.get();
         Map<String,String> headerMap = new HashMap<>();
         int connTimeout = 30 * 60 * 1000;
         int readTimeout = 30 * 60 * 1000;
-        headerMap.put("Referer", referer);
+
+        if(getReferer() != null){
+            headerMap.put("Referer", getReferer());
+        }
+
         return httpUrl(urlStr, headerMap, connTimeout, readTimeout );
     }
 
@@ -143,7 +160,7 @@ public class HttpClientUtil {
         return result;
     }
 
-    public static byte[] getAESKey(String url) {
+    public  byte[] getAESKey(String url) {
         byte[] result = null;
         InputStream inputStream = null;
         HttpEntity res = get(url);
@@ -172,16 +189,5 @@ public class HttpClientUtil {
     }
 
 
-    private static void m3u8() {
-        // https://fangdaoproduct.yaocaiwuziyou.com/00a98404c80a4bb6bcbd0affa93af57d/09bb78f29c6de8011cd02ed27ebff719-sd-encrypt-stream.m3u8?auth_key=1589600860-448a8b9cb58644678667f033a61ad013-0-356159d8555842f5381498f1d55510b0
-        String url = "https://fangdaoproduct.yaocaiwuziyou.com/00a98404c80a4bb6bcbd0affa93af57d/09bb78f29c6de8011cd02ed27ebff719-sd-encrypt-stream.m3u8?auth_key=1589600860-448a8b9cb58644678667f033a61ad013-0-356159d8555842f5381498f1d55510b0";
-        HttpEntity httpEntity = get(url);
-        try {
-            String res = EntityUtils.toString(httpEntity);
-            System.out.println(res);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 }
 

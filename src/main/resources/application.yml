@@ -1,8 +1,12 @@
-########################################################
-###FREEMARKER (FreeMarkerAutoConfiguration)
-########################################################
+#
+#server:
+#  port: 8081
 
 spring:
+  output:
+    ansi:
+      enabled: never
+
   freemarker:
     template-loader-path: classpath:/templates/
     cache: true
@@ -21,3 +25,5 @@ spring:
 #spring.freemarker.view-names= # whitelist of view names that can be resolved
   thymeleaf:
     cache: false
+# console: ${CONSOLE_LOG_PATTERN:-%clr(%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd HH:mm:ss.SSS}}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}}
+
