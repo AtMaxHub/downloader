@@ -13,6 +13,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.UnsupportedEncodingException;
 import java.security.Key;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
@@ -26,6 +27,13 @@ public class AESFileUtil {
         Security.addProvider(new BouncyCastleProvider());
     }
 
+    private static final String KEY_ALGORITHM = "AES";
+    //"AES/CBC/NoPadding"
+    // private static final String CIPHER_ALGORITHM = "AES/CBC/PKCS5Padding";
+    private static final String CIPHER_ALGORITHM = "AES/CBC/PKCS7Padding";
+
+    public static final String ENCODING = "UTF-8";
+
     private static String aesKey;
 
     public static void setKey(String key) {
@@ -37,12 +45,12 @@ public class AESFileUtil {
             FileInputStream fis = new FileInputStream(fileName);
             FileOutputStream fos = new FileOutputStream(encryptedFileName);
             //秘钥自动生成
-            KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
+            KeyGenerator keyGenerator = KeyGenerator.getInstance(KEY_ALGORITHM);
             keyGenerator.init(128);
             Key key = keyGenerator.generateKey();
             byte[] keyValue = key.getEncoded();
             fos.write(keyValue);//记录输入的加密密码的消息摘要
-            SecretKeySpec encryKey = new SecretKeySpec(keyValue, "AES");//加密秘钥
+            SecretKeySpec encryKey = new SecretKeySpec(keyValue, KEY_ALGORITHM);//加密秘钥
             byte[] ivValue = new byte[16];
             Random random = new Random(System.currentTimeMillis());
             random.nextBytes(ivValue);
@@ -74,20 +82,22 @@ public class AESFileUtil {
         }
         byte[] decryptBytes = null;
         try {
-            SecretKeySpec secretKeySpec = new SecretKeySpec(aesKey, "AES");
+            logger.info("encryptBytes.length= [{}] bytes", encryptBytes.length);
+
+            SecretKeySpec secretKeySpec = new SecretKeySpec(aesKey, KEY_ALGORITHM);
             if(iv == null){
                 iv = "0000000000000000";
             }
             AlgorithmParameterSpec paramSpec = new IvParameterSpec(iv.getBytes());
-            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
+            Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
             cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, paramSpec);
-            logger.info("encryptBytes.length= [{}] bytes", encryptBytes.length);
             decryptBytes = cipher.doFinal(encryptBytes);
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
         }
         return decryptBytes;
     }
+
 
     public static void decryptedFile(String aesKey, String encryptedFileName, String decryptedFileName) {
         File file = new File(decryptedFileName);
@@ -102,10 +112,9 @@ public class AESFileUtil {
             FileOutputStream fos = new FileOutputStream(decryptedFileName);
             byte[] decode = new Base64().decode(aesKey);
             logger.info("key_length={}", decode.length);
-            SecretKeySpec secretKeySpec = new SecretKeySpec(new Base64().decode(aesKey), "AES");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(new Base64().decode(aesKey), KEY_ALGORITHM);
 
-//            Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
-            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
+            Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
             String iv = "0000000000000000";
 //          AlgorithmParameterSpec paramSpec = new IvParameterSpec(iv.getBytes());
             AlgorithmParameterSpec paramSpec = new IvParameterSpec(new byte[16]);
@@ -126,6 +135,17 @@ public class AESFileUtil {
         }
     }
 
+
+    public static String decryptStr( String key, String iv, String data){
+        String result = "";
+        try {
+            byte[] bytes = decryptedBytes(key.getBytes(), iv, Base64.decodeBase64(data));
+            result = new String(bytes, ENCODING);
+        } catch (UnsupportedEncodingException e) {
+            logger.error(e.getMessage(), e);
+        }
+        return result;
+    }
 }
 
 

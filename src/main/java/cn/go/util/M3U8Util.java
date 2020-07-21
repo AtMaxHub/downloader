@@ -30,7 +30,7 @@ public class M3U8Util {
     private static final String question_mark = "?";
 
     private static String prefix = "D:/all.download/java_download_m3u8/" ;
-    private static String TEMP_DIR = prefix + "temp";
+    private static String TEMP_DIR = prefix + "temp" + File.separator;
     private static String mergeTsPath ;
 
     private static volatile String fileName= null;
@@ -41,10 +41,35 @@ public class M3U8Util {
     private static final BlockingQueue<byte[]> ENCRYPT_BLOCKING_QUEUE = new LinkedBlockingQueue<>();
     // private static ConcurrentSkipListSet<Integer> seqList = new ConcurrentSkipListSet<>();
     private static final ConcurrentSkipListMap<Integer, byte[]> bytesMap = new ConcurrentSkipListMap<>();
+    // 使用此map 会使用单线程
+    private static final LinkedHashMap<String, byte[]> bytesLinkedMap = new LinkedHashMap<>();
+    private static final Map<String, byte[]> conBytesMap = new ConcurrentHashMap<>();
+    private static volatile boolean USE_LINKED_MAP = false;
     private static final ConcurrentSkipListMap<Integer, File> filesMap = new ConcurrentSkipListMap<>();
 
 
     public static String download(ReqDto reqDto){
+        String fileName = reqDto.getFileName();
+        if(org.apache.commons.lang3.StringUtils.isNotBlank(fileName)){
+            String fileDir = TEMP_DIR + fileName;
+            File file = new File(TEMP_DIR);
+            File[] files = file.listFiles();
+            int count = 0;
+            if(files != null && files.length > 1){
+                for (File fileEle : files) {
+                    if(fileEle.isDirectory()){
+                        continue;
+                    }
+                    String name = fileEle.getName();
+                    if(name.contains(fileName)){
+                        count++;
+                    }
+                }
+            }
+            count++;
+            fileName = fileName + "-" + count;
+            reqDto.setFileName(fileName);
+        }
         return download(reqDto, false);
     }
 
@@ -86,7 +111,7 @@ public class M3U8Util {
         if(AES_KEY_URL != null){
             AES_KEY = new HttpClientUtil(referer).getAESKey(AES_KEY_URL);
         }
-        String mergeTsPathTempLate = TEMP_DIR + File.separator  + "${FILE_NAME}_" + DateFormatUtils.format(new Date(), "yyyy.MM.dd.HH.mm.ss") +".ts";
+        String mergeTsPathTempLate = TEMP_DIR  + "${FILE_NAME}_" + DateFormatUtils.format(new Date(), "yyyy.MM.dd.HH.mm.ss") +".ts";
         if(bigFile){
             File tfile = new File(TEMP_DIR);
             if (!tfile.exists()) {
@@ -99,39 +124,94 @@ public class M3U8Util {
             // 3：并行下载 ts， 并解密 放入 bytesMap
             gainTs2Memory(m3U8);
             // 4：合并 bytesMap，输出到 MP4 文件
-            mergeMemBytes(reqDto.getFileName(), mergeTsPathTempLate);
+            mergeMemBytes(m3U8.getUrlList(), reqDto.getFileName(), mergeTsPathTempLate);
         }
         convert(reqDto.getBitRate());
         return null;
     }
 
 
-    private static void gainTs2Memory(M3U8 m3u8Entity){
-        String basePath = m3u8Entity.getBasepath();
-        // .stream().parallel()
-        m3u8Entity.getTsList().stream().parallel().forEach(m3U8Ts -> {
-            try {
-                String tsUrl = basePath + m3U8Ts.getUrl();
-//                HttpEntity httpEntity = HttpClientUtil.get(tsUrl);
-//                byte[] inputBytes = IOUtils.toByteArray(httpEntity.getContent());
-                byte[] inputBytes = new HttpClientUtil(m3u8Entity.getReferer()).httpUrl(tsUrl);
-                byte[] decryptedBytes;
-                if(AES_KEY != null){
-                    decryptedBytes = AESFileUtil.decryptedBytes(AES_KEY, AES_IV, inputBytes);
-                }else {
-                    decryptedBytes = inputBytes;
+    private static byte[] downloadTs(String  tsUrl, M3U8 m3u8Entity){
+        byte[] decryptedBytes = null;
+        int tmpTryCount = tryCount;
+        int tmpTryTimes = 0;
+        while (true){
+            if(decryptedBytes == null && tmpTryTimes <= tmpTryCount){
+                try {
+                HttpEntity httpEntity = new HttpClientUtil(m3u8Entity.getReferer()).get(tsUrl);
+                byte[] inputBytes = IOUtils.toByteArray(httpEntity.getContent());
+//                    byte[] inputBytes = new HttpClientUtil(m3u8Entity.getReferer()).httpUrl(tsUrl);
+
+                    if(AES_KEY != null){
+                        decryptedBytes = AESFileUtil.decryptedBytes(AES_KEY, AES_IV, inputBytes);
+                    }else {
+                        decryptedBytes = inputBytes;
+                    }
+                    tmpTryTimes++;
+                    try {
+                        TimeUnit.SECONDS.sleep( tmpTryTimes);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                } catch (Exception e) {
+                    logger.error(e.getMessage(), e);
+                    boolean unknownHost = e.getMessage().contains("UnknownHost");
+                    if(unknownHost){
+                        tmpTryCount = 500;
+                    }
                 }
                 if(decryptedBytes == null){
-                    logger.error("decryptedBytes_is_null, tsUrl= {}", tsUrl);
+                    logger.error("decryptedBytes_is_null, tmpTryTimes=[{}], tsUrl=[{}]",tmpTryTimes, tsUrl);
+                }
+            }else {
+                break;
+            }
+        }
+
+        return decryptedBytes;
+    }
+
+    private static void gainTs2Memory(M3U8 m3u8Entity){
+        String basePath = m3u8Entity.getBasepath();
+
+        if(USE_LINKED_MAP){
+            m3u8Entity.getTsList().forEach(m3U8Ts -> {
+                String tsUrl = basePath + m3U8Ts.getUrl();
+                byte[] decryptedBytes = downloadTs(tsUrl, m3u8Entity);
+                if(decryptedBytes == null){
                     return;
                 }
-                Integer tsSeq = Integer.valueOf(getSeq(tsUrl));
-                bytesMap.put(tsSeq, decryptedBytes);
+                bytesLinkedMap.put(tsUrl, decryptedBytes);
+            });
+        }else {
+            m3u8Entity.getTsList().stream().parallel().forEach(m3U8Ts -> {
+                try {
+                    String tsUrl = basePath + m3U8Ts.getUrl();
+                    byte[] decryptedBytes = downloadTs(tsUrl, m3u8Entity);
+                    if(decryptedBytes == null){
+                        return;
+                    }
+                    conBytesMap.put(tsUrl, decryptedBytes);
 
-            } catch (Exception e) {
-                logger.error(e.getMessage(), e);
-            }
-        });
+                    /*byte[] inputBytes = new HttpClientUtil(m3u8Entity.getReferer()).httpUrl(tsUrl);
+                    byte[] decryptedBytes;
+                    if(AES_KEY != null){
+                        decryptedBytes = AESFileUtil.decryptedBytes(AES_KEY, AES_IV, inputBytes);
+                    }else {
+                        decryptedBytes = inputBytes;
+                    }
+                    if(decryptedBytes == null){
+                        logger.error("decryptedBytes_is_null, tsUrl= {}", tsUrl);
+                        return;
+                    }
+                    Integer tsSeq = Integer.valueOf(getSeq(tsUrl));
+                    bytesMap.put(tsSeq, decryptedBytes);*/
+
+                } catch (Exception e) {
+                    logger.error(e.getMessage(), e);
+                }
+            });
+        }
         logger.info( "[{}] 文件下载完毕!", fileName);
     }
 
@@ -140,7 +220,7 @@ public class M3U8Util {
         // .stream().parallel()
         m3u8Entity.getTsList().forEach(m3U8Ts ->
         {
-            File file = new File(TEMP_DIR + File.separator + m3U8Ts.getFile());
+            File file = new File(TEMP_DIR + m3U8Ts.getFile());
             if(file.exists()){
                 // 下载过的就不管了
                 logger.info("{} : exists",  m3U8Ts.getFile());
@@ -187,6 +267,9 @@ public class M3U8Util {
     }
 
     private static String buildFileName(String m3u8URL){
+        if(!m3u8URL.contains("?")){
+            return System.currentTimeMillis()+"";
+        }
         String tmpFileName = m3u8URL.substring(m3u8URL.lastIndexOf("/") + 1, m3u8URL.indexOf("?"));
         String fileNameRegex = "^[a-z0-9A-Z]+";
         Pattern pattern = Pattern.compile(fileNameRegex);
@@ -215,6 +298,8 @@ public class M3U8Util {
                 logger.error("m3u8URL=[{}], get_m3u8_txt_return_null", m3u8URL);
                 return null;
             }
+            boolean needResetBasePath = false;
+
             String m3u8Txt = IOUtils.toString(httpEntity.getContent(), Charset.defaultCharset());
             String[] splitTxt = m3u8Txt.split("\n");
 
@@ -257,6 +342,27 @@ public class M3U8Util {
                 if (line.endsWith("m3u8")) {
                     return getM3U8ByURL(basePath + line, referer);
                 }
+                if(line.startsWith("/") && !needResetBasePath ){
+                    needResetBasePath = true;
+                    java.net.URL  url = new java.net.URL(basePath);
+                    basePath =  url.getProtocol() +"://" + url.getAuthority();
+                    m3U8.setBasepath(basePath);
+                }
+                /*if(!USE_LINKED_MAP){
+                    boolean contains = line.contains("-");
+                    if(!contains){
+                        USE_LINKED_MAP = true;
+                    }else {
+                        String seqStr = line.substring(line.lastIndexOf("-") + 1);
+                        String numReg = "^[0-9]+";
+                        boolean matches = seqStr.matches(numReg);
+                        if(!matches){
+                            USE_LINKED_MAP = true;
+                        }
+                    }
+                }*/
+                m3U8.addUrl(basePath + line);
+
                 if(line.contains(question_mark)){
                     String file = line.substring(0, line.indexOf(question_mark));
                     m3U8.addTs(new M3U8.Ts(line, file, seconds));
@@ -265,6 +371,8 @@ public class M3U8Util {
                 }
                 seconds = 0;
             }
+
+
             return m3U8;
         } catch (IOException e) {
             logger.error(e.getMessage(), e);
@@ -273,9 +381,9 @@ public class M3U8Util {
     }
 
 
-    private static void mergeMemBytes(String customFileName, String resultPath) {
+    private static void mergeMemBytes(List<String> urlList, String customFileName, String resultPath) {
         String  diskFilePath =  resultPath.replace("${FILE_NAME}", fileName);
-        if(org.apache.commons.lang3.StringUtils.isNoneBlank(customFileName)){
+        if(org.apache.commons.lang3.StringUtils.isNotBlank(customFileName)){
             diskFilePath = resultPath.replace("${FILE_NAME}", customFileName);
         }
         mergeTsPath = diskFilePath;
@@ -284,14 +392,36 @@ public class M3U8Util {
         File resultFile = new File(diskFilePath);
         try {
             FileOutputStream fileOutputStream = new FileOutputStream(resultFile, true);
-            bytesMap.forEach((seqNo, bytes) -> {
+           /* if(USE_LINKED_MAP){
+                bytesLinkedMap.forEach((seqNo, bytes) -> {
+                    try {
+                        fileOutputStream.write(bytes);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+                bytesLinkedMap.clear();
+            }else {
+                bytesMap.forEach((seqNo, bytes) -> {
+                    try {
+                        fileOutputStream.write(bytes);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+                bytesMap.clear();
+            }*/
+
+            urlList.forEach((urlKey)->{
                 try {
+                    byte[] bytes = conBytesMap.get(urlKey);
                     fileOutputStream.write(bytes);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             });
-            bytesMap.clear();
+            conBytesMap.clear();
+
             fileOutputStream.flush();
             fileOutputStream.close();
         } catch (Exception e) {

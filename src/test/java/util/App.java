@@ -41,7 +41,7 @@ public class App {
     private static ConcurrentSkipListSet<Integer> seqList = new ConcurrentSkipListSet<>();
 
     private static final String question_mark = "?";
-    private static final String referer = "https://course.xxx.cn/course/";
+    private static final String referer = "https://xxxxxx/";
 
     private static String prefix = "D:/all.download/java_download_m3u8/" ;
     private static String TEMP_DIR = prefix + "temp";

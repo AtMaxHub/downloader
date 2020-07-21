@@ -3,17 +3,32 @@ package util;
 import cn.go.util.AESFileUtil;
 import cn.go.util.HttpClientUtil;
 import cn.go.util.M3U8Util;
+import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.http.HttpEntity;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiString;
 import org.fusesource.jansi.HtmlAnsiOutputStream;
 import sun.misc.BASE64Encoder;
 
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.security.NoSuchAlgorithmException;
+import java.security.Security;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -66,7 +81,7 @@ public class CommonTest {
     }
 
     private static void m3u8(){
-        HttpClientUtil.refererThreadLocal.set("https://course.xxx.cn/course/");
+        HttpClientUtil.refererThreadLocal.set("https://xxxxx/");
         String result =  M3U8Util.download(null, true);
         System.out.println(result);
     }
@@ -150,7 +165,113 @@ public class CommonTest {
         }
     }
 
-    public static void main(String[] args) {
-        jarFile();
+    private static void str(){
+        String numReg = "^[0-9]+";
+        String str="2131-0";
+        String str1="2131";
+        System.out.println(str1.matches(numReg));
+        System.out.println(numReg.matches(str1));
+        System.out.println("java.net.UnknownHostException".contains("UnknownHost"));
     }
+
+    public static String encrypt(String str, String key) {
+        String KEY_ALGORITHM = "AES";
+        // 加密模式为ECB，填充模式为NoPadding
+//        String CIPHER_ALGORITHM = "AES/CBC/NoPadding";
+        String CIPHER_ALGORITHM = "AES/CBC/PKCS7Padding";
+//        String CIPHER_ALGORITHM = "AES/CBC/PKCS5Padding";
+        // 字符集
+        String ENCODING = "UTF-8";
+        // 向量
+        //String IV_SEED = "1234567812345678";
+        String IV_SEED = "0000000000000000";
+        try {
+            if (str == null) {
+                throw  new RuntimeException ("AES加密出错:Key为空null");
+            }
+            // 判断Key是否为16位
+            if (key.length() != 16) {
+                throw  new RuntimeException ("AES加密出错:Key长度不是16位");
+            }
+            byte[] raw = key.getBytes(ENCODING);
+            SecretKeySpec skeySpec = new SecretKeySpec(raw, KEY_ALGORITHM);
+            Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
+            IvParameterSpec iv = new IvParameterSpec(IV_SEED.getBytes(ENCODING));
+            cipher.init(Cipher.ENCRYPT_MODE, skeySpec, iv);
+
+
+            byte[] srawt = str.getBytes(ENCODING);
+            /*int len = srawt.length;
+            *//* 计算补空格后的长度 *//*
+            while (len % 16 != 0)
+                len++;
+            byte[] sraw = new byte[len];
+            *//* 在最后空格 *//*
+            for (int i = 0; i < len; ++i) {
+                if (i < srawt.length) {
+                    sraw[i] = srawt[i];
+                } else {
+                    sraw[i] = 32;
+                }
+            }*/
+            //byte[] encrypted = cipher.doFinal(sraw);
+            byte[] encrypted = cipher.doFinal(srawt);
+            return (new String(Base64.encodeBase64(encrypted), "UTF-8"));
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return null;
+        }
+    }
+
+    private static SecretKey generateKey(String salt, String passphrase) {
+        try {
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            KeySpec spec = new PBEKeySpec(passphrase.toCharArray(), hex(salt), 1000, 128);
+            SecretKey key = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
+            return key;
+        }
+        catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            return null;
+        }
+    }
+
+    public static byte[] hex(String str) {
+        try {
+            return Hex.decodeHex(str.toCharArray());
+        }
+        catch (DecoderException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+
+    public static String byteToHex(byte[] bytes){
+        String strHex = "";
+        StringBuilder sb = new StringBuilder("");
+        for (int n = 0; n < bytes.length; n++) {
+            strHex = Integer.toHexString(bytes[n] & 0xFF);
+            sb.append((strHex.length() == 1) ? "0" + strHex : strHex); // 每个字节由两个字符表示，位数不够，高位补0
+        }
+        return sb.toString().trim();
+    }
+
+    private static void clietTest(){
+        String m3u8URL = "";
+        HttpClientUtil.setORIGIN("");
+        HttpEntity httpEntity = new HttpClientUtil("").get(m3u8URL);
+        String m3u8Txt = null;
+        try {
+            m3u8Txt = IOUtils.toString(httpEntity.getContent(), Charset.defaultCharset());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        System.out.println(m3u8Txt);
+    }
+
+    static {
+        Security.addProvider(new BouncyCastleProvider());
+    }
+    public static void main(String[] args) {
+    }
+
 }

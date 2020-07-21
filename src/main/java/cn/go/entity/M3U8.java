@@ -2,6 +2,7 @@ package cn.go.entity;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -15,6 +16,19 @@ public class M3U8 {
 	private long startDownloadTime;// 开始下载时间
 	private long endDownloadTime;// 结束下载时间
 	private String referer;
+	private List<String> urlList = new LinkedList<>();
+
+	public List<String> getUrlList() {
+		return urlList;
+	}
+
+	public void setUrlList(List<String> urlList) {
+		this.urlList = urlList;
+	}
+
+	public void addUrl(String url) {
+		this.urlList.add(url);
+	}
 
 	public String getReferer() {
 		return referer;

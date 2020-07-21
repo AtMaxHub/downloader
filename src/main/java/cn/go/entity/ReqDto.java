@@ -8,7 +8,15 @@ public class ReqDto {
     private String referer;
     private String fileName;
     private String bitRate;
+    private String key;
 
+    public String getKey() {
+        return key;
+    }
+
+    public void setKey(String key) {
+        this.key = key;
+    }
 
     public String getFileName() {
         return fileName;
@@ -49,6 +57,7 @@ public class ReqDto {
                 ", referer='" + referer + '\'' +
                 ", fileName='" + fileName + '\'' +
                 ", bitRate='" + bitRate + '\'' +
+                ", key='" + key + '\'' +
                 '}';
     }
 }

@@ -2,6 +2,9 @@ package cn.go.util;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpStatus;
+import org.apache.http.StatusLine;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -28,7 +31,15 @@ public class HttpClientUtil {
     private  String referer ;
 
     private static String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36";
-    private static String ORIGIN = "https://course.weimiao.cn";
+    private static volatile String ORIGIN = "";
+
+    public static String getORIGIN() {
+        return ORIGIN;
+    }
+
+    public static void setORIGIN(String ORIGIN) {
+        HttpClientUtil.ORIGIN = ORIGIN;
+    }
 
     public String getReferer() {
         if(this.referer != null){
@@ -55,13 +66,51 @@ public class HttpClientUtil {
         if(getReferer() != null){
             httpGet.setHeader("Referer", getReferer());
         }
+        // Sec-Fetch-Dest: empty
+        //Accept: */*
+        //Origin: https://course.weimiao.cn
+        //Sec-Fetch-Site: cross-site
+        //Sec-Fetch-Mode: cors
+        //Referer: https://course.weimiao.cn/course/3/video/269
+        //Accept-Encoding: gzip, deflate, br
+        //Accept-Language: zh-CN,zh;q=0.9
+        /*HttpHost proxy = new HttpHost("127.0.0.1", 8888);
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setProxy(proxy)
+                .setConnectTimeout(10000)
+                .setSocketTimeout(10000)
+                .setConnectionRequestTimeout(3000)
+                .build();
+        httpGet.setConfig(requestConfig);*/
+
+        httpGet.setHeader("Sec-Fetch-Dest", "empty");
+        httpGet.setHeader("Accept", "cors");
+        httpGet.setHeader("Accept-Encoding", "gzip, deflate, br");
+        httpGet.setHeader("Accept-Language", "zh-CN,zh;q=0.9");
+        httpGet.setHeader("Sec-Fetch-Mode", "*/*");
+        httpGet.setHeader("Sec-Fetch-Site", "cross-site");
+
         httpGet.setHeader("User-Agent", USER_AGENT);
         httpGet.setHeader("Origin", ORIGIN);
         try {
             CloseableHttpResponse response = client.execute(httpGet);
+            StatusLine statusLine = response.getStatusLine();
+            int statusCode = statusLine.getStatusCode();
+            if(HttpStatus.SC_FORBIDDEN == statusCode){
+                throw new RuntimeException("403");
+            }
+
             result = response.getEntity();
         } catch (IOException e) {
-            logger.error(e.getMessage(), e);
+            boolean unknownHost = false;
+            if(e.getClass() != null){
+                unknownHost = e.getClass().toString().contains("UnknownHost");
+            }
+            if(unknownHost){
+                logger.error(e.getClass().toString() + "," + url);
+            }else{
+                logger.error(e.getMessage(), e);
+            }
         }
         return result;
     }
