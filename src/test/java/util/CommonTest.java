@@ -14,6 +14,8 @@ import sun.misc.BASE64Encoder;
 import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -130,11 +132,25 @@ public class CommonTest {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
 
+    private static void jarFile (){
+        File file = new File("D:/workspace/Idea/m3u8_download/target/m3u8-download-0.0.1-SNAPSHOT.jar!/BOOT-INF/classes!/ffmpeg-3.4.1.exe");
+        InputStream resourceAsStream = CommonTest.class.getResourceAsStream("/ffmpeg-3.4.1.exe");
+        try {
+            String userDir = System.getProperty("user.dir");
+            String ffmpegDir = userDir +"/ffmpeg-3.4.1.exe";
+            FileOutputStream fileOutputStream = new FileOutputStream(ffmpegDir);
+            FileInputStream fileInputStream = new FileInputStream(file);
+            int copy = IOUtils.copy(fileInputStream, fileOutputStream);
+            System.out.println(copy);
+        } catch (IOException e) {
+            e.printStackTrace();
 
+        }
     }
 
     public static void main(String[] args) {
-        out();
+        jarFile();
     }
 }

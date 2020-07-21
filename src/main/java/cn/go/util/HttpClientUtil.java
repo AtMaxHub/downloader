@@ -27,6 +27,9 @@ public class HttpClientUtil {
     public static volatile String default_referer ;
     private  String referer ;
 
+    private static String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36";
+    private static String ORIGIN = "https://course.weimiao.cn";
+
     public String getReferer() {
         if(this.referer != null){
            return this.referer;
@@ -52,6 +55,8 @@ public class HttpClientUtil {
         if(getReferer() != null){
             httpGet.setHeader("Referer", getReferer());
         }
+        httpGet.setHeader("User-Agent", USER_AGENT);
+        httpGet.setHeader("Origin", ORIGIN);
         try {
             CloseableHttpResponse response = client.execute(httpGet);
             result = response.getEntity();
@@ -76,6 +81,8 @@ public class HttpClientUtil {
         if(getReferer() != null){
             httpGet.setHeader("Referer", getReferer());
         }
+        httpGet.setHeader("User-Agent", USER_AGENT);
+        httpGet.setHeader("Origin", ORIGIN);
         try {
             CloseableHttpResponse response = client.execute(httpGet);
             result = IOUtils.toByteArray(response.getEntity().getContent());
@@ -144,7 +151,8 @@ public class HttpClientUtil {
         if(getReferer() != null){
             headerMap.put("Referer", getReferer());
         }
-
+        headerMap.put("User-Agent", USER_AGENT);
+        headerMap.put("Origin", ORIGIN);
         return httpUrl(urlStr, headerMap, connTimeout, readTimeout );
     }
 

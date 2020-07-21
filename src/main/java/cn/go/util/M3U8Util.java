@@ -72,7 +72,7 @@ public class M3U8Util {
                 }
                 logger.info("tryTimes=[{}]", tryTimes);
                 m3U8 = getM3U8ByURL(url,referer);
-               tryCount++;
+                tryTimes++;
             }else{
                 break;
             }
@@ -338,20 +338,63 @@ public class M3U8Util {
         return true;
     }
 
-    private static void convert(String bitRate){
 
-
-        URL resource = ClassLoader.getSystemResource("ffmpeg-3.4.1.exe");
+    private static String parseFFmepgPath(URL resource){
+        if(resource == null){
+            return null;
+        }
         String absolutePath = null;
-        if(resource != null){
-            try {
-                absolutePath = new File(resource.toURI()).getAbsolutePath();
-            } catch (URISyntaxException e) {
-                logger.error("ffmpeg_not_found" + e.getMessage(),e);
-                logger.error("try execute command [ffmpeg -y -i xx\\input.ts -vcodec copy -acodec copy -vbsf h264_mp4toannexb xx\\out.mp4] to complete the code conversion" );
+        try {
+            absolutePath = new File(resource.toURI()).getAbsolutePath();
+        } catch (URISyntaxException e) {
+            logger.error("ffmpeg_not_found" + e.getMessage(),e);
+            logger.error("try execute command [ffmpeg -y -i xx\\input.ts -vcodec copy -acodec copy -vbsf h264_mp4toannexb xx\\out.mp4] to complete the code conversion" );
+        }
+        return absolutePath;
+    }
+
+    private static void convert(String bitRate){
+        URL resource = ClassLoader.getSystemResource("ffmpeg-3.4.1.exe");
+        String absolutePath  = parseFFmepgPath(resource);
+
+        if(absolutePath == null){
+            resource = ClassLoader.getSystemResource("/ffmpeg-3.4.1.exe");
+            absolutePath = parseFFmepgPath(resource);
+        }
+
+        if(absolutePath == null){
+            InputStream inputStream = M3U8Util.class.getResourceAsStream("/ffmpeg-3.4.1.exe");
+            absolutePath = parseFFmepgPath(resource);
+
+            String userDir = System.getProperty("user.dir");
+            String ffmpegDir = userDir +"/ffmpeg-3.4.1.exe";
+            File file = new File(ffmpegDir);
+            if(!file.exists()){
+                FileOutputStream fileOutputStream = null;
+                try {
+                    fileOutputStream = new FileOutputStream(ffmpegDir);
+                    int copy = IOUtils.copy(inputStream, fileOutputStream);
+                    fileOutputStream.close();
+                    inputStream.close();
+                    logger.info("copy=[{}]", copy);
+                } catch (FileNotFoundException e) {
+                    logger.error(e.getMessage(), e);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            if(file.exists()){
+                boolean canExecute = file.canExecute();
+                logger.info("[{}],canExecute=[{}]",file.getAbsolutePath(), canExecute);
+                absolutePath = ffmpegDir;
             }
         }
 
+        if(absolutePath == null){
+            throw  new RuntimeException("ffmpeg_not_found, ts_file=" + mergeTsPath);
+        }
+
+        logger.info("absolutePath=[{}]", absolutePath);
         String h264 = absolutePath + " -y -i ${TS_FILE} -vcodec copy -acodec copy -vbsf h264_mp4toannexb ${MP4_FILE}";
 
         // 这个方式转换慢但是生成的 mp4 文件小

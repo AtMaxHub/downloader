@@ -443,10 +443,11 @@
 <script src="js/common.js"></script>
 <!-- AdminLTE for demo purposes -->
 <script type="text/javascript">
+    var logUrl = 'ws://localhost:8080/api/log';
     $(document).ready(function () {
         bsCustomFileInput.init();
         // 指定websocket路径,此地址建议根据用js动态获取
-        var webSocket = new WebSocket('ws://localhost:8080/api/log');
+        /*var webSocket = new WebSocket(logUrl);
         webSocket.onmessage = function (event) {
 
             // 接收服务端的实时日志并添加到HTML页面中（error显示红色）
@@ -456,20 +457,20 @@
                 $("#log_data").append(event.data).css("color", "#aaa");
             }
             $("#log_data").scrollTop($("#log_data").height());
-            /*// 是否滚动
+            /!*!// 是否滚动
             if (checked) {
                 // 滚动条滚动到最低部
                 $("#log-container").scrollTop($("#log-container div").height() - $("#log-container").height());
-            }*/
-        };
+            }*!/
+        };*/
 
     });
     $("#getLog.btn-block").bind("click", function () {
-        var webSocket = new WebSocket('ws://localhost:8080/log');
+        var webSocket = new WebSocket(logUrl);
         webSocket.onmessage = function (event) {
             debugger;
             // 接收服务端的实时日志并添加到HTML页面中（error显示红色）
-            if (event.data.search("ERROR") != -1) {
+            if (event.data.search("ERROR") !== -1) {
                 $("#log_data").append(event.data).css("color", "#AA0000");
             } else {
                 $("#log_data").append(event.data).css("color", "#aaa");
