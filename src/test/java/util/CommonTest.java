@@ -23,12 +23,15 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
 import java.io.*;
+import java.net.MalformedURLException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -272,6 +275,17 @@ public class CommonTest {
         Security.addProvider(new BouncyCastleProvider());
     }
     public static void main(String[] args) {
+        byte[] bytes = "9fc8ce2a8ceadfaa".getBytes();
+
+        System.out.println(bytes);
+        java.net.URL  url = null;
+        try {
+            url = new java.net.URL("https://lajiao-bo.com/20190504/HsfS4Dpd/800kb/hls/index.m3u8 ");
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+        System.out.println(url.getProtocol());
+        System.out.println(url.getAuthority());
     }
 
 }

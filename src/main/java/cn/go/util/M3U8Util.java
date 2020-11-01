@@ -22,10 +22,6 @@ import java.util.regex.Pattern;
 public class M3U8Util {
     private static Logger logger = LoggerFactory.getLogger(M3U8Util.class);
 
-    private static String AES_KEY_URL ;
-    private static byte[] AES_KEY ;
-    private static String AES_IV ;
-
     private static int tryCount = 30;
     private static final String question_mark = "?";
 
@@ -95,7 +91,7 @@ public class M3U8Util {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                logger.info("tryTimes=[{}]", tryTimes);
+                logger.info("tryTimes=[{}]; m3u8_url=[{}]", tryTimes, url);
                 m3U8 = getM3U8ByURL(url,referer);
                 tryTimes++;
             }else{
@@ -108,8 +104,9 @@ public class M3U8Util {
         }
 
         // 2：下载 aes-key
-        if(AES_KEY_URL != null){
-            AES_KEY = new HttpClientUtil(referer).getAESKey(AES_KEY_URL);
+        if(m3U8.getAES_KEY_URL() != null){
+            byte[] AES_KEY = new HttpClientUtil(referer).getAESKey(m3U8.getAES_KEY_URL());
+            m3U8.setAES_KEY(AES_KEY);
         }
         String mergeTsPathTempLate = TEMP_DIR  + "${FILE_NAME}_" + DateFormatUtils.format(new Date(), "yyyy.MM.dd.HH.mm.ss") +".ts";
         if(bigFile){
@@ -138,31 +135,42 @@ public class M3U8Util {
         while (true){
             if(decryptedBytes == null && tmpTryTimes <= tmpTryCount){
                 try {
-                HttpEntity httpEntity = new HttpClientUtil(m3u8Entity.getReferer()).get(tsUrl);
-                byte[] inputBytes = IOUtils.toByteArray(httpEntity.getContent());
-//                    byte[] inputBytes = new HttpClientUtil(m3u8Entity.getReferer()).httpUrl(tsUrl);
-
-                    if(AES_KEY != null){
-                        decryptedBytes = AESFileUtil.decryptedBytes(AES_KEY, AES_IV, inputBytes);
-                    }else {
-                        decryptedBytes = inputBytes;
-                    }
-                    tmpTryTimes++;
                     try {
                         TimeUnit.SECONDS.sleep( tmpTryTimes);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
+                    HttpEntity httpEntity = new HttpClientUtil(m3u8Entity.getReferer()).get(tsUrl);
+                    if(httpEntity == null){
+                        tmpTryTimes ++;
+                        continue;
+                    }
+                    byte[] inputBytes = IOUtils.toByteArray(httpEntity.getContent());
+                    if(inputBytes != null){
+                        logger.info("url={} ; inputStream.read [{}] bytes", tsUrl, inputBytes.length);
+                    }else{
+                        logger.info("url={} ; inputStream.read_null", tsUrl);
+                    }
+//                    byte[] inputBytes = new HttpClientUtil(m3u8Entity.getReferer()).httpUrl(tsUrl);
+
+                    if(m3u8Entity.getAES_KEY() != null){
+                        decryptedBytes = AESFileUtil.decryptedBytes(m3u8Entity.getAES_KEY(), m3u8Entity.getAES_IV(), inputBytes);
+                    }else {
+                        decryptedBytes = inputBytes;
+                    }
                 } catch (Exception e) {
                     logger.error(e.getMessage(), e);
-                    boolean unknownHost = e.getMessage().contains("UnknownHost");
-                    if(unknownHost){
-                        tmpTryCount = 500;
+                    if(e.getMessage() != null){
+                        boolean unknownHost = e.getMessage().contains("UnknownHost");
+                        if(unknownHost){
+                            tmpTryCount = 500;
+                        }
                     }
                 }
                 if(decryptedBytes == null){
                     logger.error("decryptedBytes_is_null, tmpTryTimes=[{}], tsUrl=[{}]",tmpTryTimes, tsUrl);
                 }
+                tmpTryTimes++;
             }else {
                 break;
             }
@@ -186,7 +194,7 @@ public class M3U8Util {
         }else {
             m3u8Entity.getTsList().stream().parallel().forEach(m3U8Ts -> {
                 try {
-                    String tsUrl = basePath + m3U8Ts.getUrl();
+                    String tsUrl = m3U8Ts.getUrl();
                     byte[] decryptedBytes = downloadTs(tsUrl, m3u8Entity);
                     if(decryptedBytes == null){
                         return;
@@ -233,8 +241,8 @@ public class M3U8Util {
                 String tsUrl = basePath + m3U8Ts.getUrl();
                 byte[] bytes = new HttpClientUtil(m3u8Entity.getReferer()).getBytes(tsUrl);
                 byte[] decryptedBytes;
-                if(AES_KEY != null){
-                    decryptedBytes = AESFileUtil.decryptedBytes(AES_KEY, AES_IV, bytes);
+                if(m3u8Entity.getAES_KEY() != null){
+                    decryptedBytes = AESFileUtil.decryptedBytes(m3u8Entity.getAES_KEY(), m3u8Entity.getAES_IV(), bytes);
                 }else {
                     decryptedBytes = bytes;
                 }
@@ -301,6 +309,7 @@ public class M3U8Util {
             boolean needResetBasePath = false;
 
             String m3u8Txt = IOUtils.toString(httpEntity.getContent(), Charset.defaultCharset());
+            logger.info("m3u8URL={}; m3u8Txt={}",m3u8URL, m3u8Txt);
             String[] splitTxt = m3u8Txt.split("\n");
 
             float seconds = 0;
@@ -327,14 +336,22 @@ public class M3U8Util {
                                 continue;
                             }
                             if (s1.contains("URI")) {
-                                AES_KEY_URL = s1.split("=", 2)[1];
-                                if(AES_KEY_URL != null){
-                                    AES_KEY_URL = AES_KEY_URL.replaceAll("\"","");
+                                String aes_key_url = s1.split("=", 2)[1];
+                                if(aes_key_url != null){
+                                    aes_key_url = aes_key_url.replaceAll("\"","");
+                                    if(aes_key_url.startsWith("/") && !(aes_key_url.contains("http"))){
+                                        aes_key_url = HttpClientUtil.getDomain(m3u8URL) + aes_key_url;
+                                    }
+                                    m3U8.setAES_KEY_URL(aes_key_url);
                                 }
+
                                 continue;
                             }
-                            if (s1.contains("IV"))
-                                AES_IV = s1.split("=", 2)[1];
+                            if (s1.contains("IV")){
+                                String aes_iv = s1.split("=", 2)[1];
+                                m3U8.setAES_IV(aes_iv);
+                            }
+
                         }
                     }
                     continue;
@@ -361,7 +378,12 @@ public class M3U8Util {
                         }
                     }
                 }*/
-                m3U8.addUrl(basePath + line);
+                else if(line.startsWith("http")){
+                    m3U8.addUrl(line);
+                }else{
+                    m3U8.addUrl(basePath + line);
+                }
+
 
                 if(line.contains(question_mark)){
                     String file = line.substring(0, line.indexOf(question_mark));

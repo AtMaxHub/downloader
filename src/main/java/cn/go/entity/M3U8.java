@@ -16,7 +16,35 @@ public class M3U8 {
 	private long startDownloadTime;// 开始下载时间
 	private long endDownloadTime;// 结束下载时间
 	private String referer;
-	private List<String> urlList = new LinkedList<>();
+	private  String AES_KEY_URL ;
+	private  byte[] AES_KEY ;
+	private  String AES_IV ;
+
+    public String getAES_KEY_URL() {
+        return AES_KEY_URL;
+    }
+
+    public void setAES_KEY_URL(String AES_KEY_URL) {
+        this.AES_KEY_URL = AES_KEY_URL;
+    }
+
+    public byte[] getAES_KEY() {
+        return AES_KEY;
+    }
+
+    public void setAES_KEY(byte[] AES_KEY) {
+        this.AES_KEY = AES_KEY;
+    }
+
+    public String getAES_IV() {
+        return AES_IV;
+    }
+
+    public void setAES_IV(String AES_IV) {
+        this.AES_IV = AES_IV;
+    }
+
+    private List<String> urlList = new LinkedList<>();
 
 	public List<String> getUrlList() {
 		return urlList;

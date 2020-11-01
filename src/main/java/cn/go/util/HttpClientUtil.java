@@ -1,10 +1,7 @@
 package cn.go.util;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpStatus;
-import org.apache.http.StatusLine;
+import org.apache.http.*;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -19,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -96,8 +94,13 @@ public class HttpClientUtil {
             CloseableHttpResponse response = client.execute(httpGet);
             StatusLine statusLine = response.getStatusLine();
             int statusCode = statusLine.getStatusCode();
+            logger.info("url={} ; statusCode= [{}] ", url, statusCode);
             if(HttpStatus.SC_FORBIDDEN == statusCode){
                 throw new RuntimeException("403");
+            }else if(HttpStatus.SC_MOVED_PERMANENTLY == statusCode || HttpStatus.SC_MOVED_TEMPORARILY == statusCode ){
+                Header location = response.getFirstHeader("Location");
+                String value = location.getValue();
+                return get(value);
             }
 
             result = response.getEntity();
@@ -245,6 +248,15 @@ public class HttpClientUtil {
         return result;
     }
 
+    public static String getDomain(String urlStr){
+        URL  url = null;
+        try {
+            url = new URL(urlStr);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+        return  url.getProtocol() +"://" + url.getAuthority();
+    }
 
 }
 
