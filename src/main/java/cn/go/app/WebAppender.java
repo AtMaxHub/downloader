@@ -1,3 +1,4 @@
+/*
 package cn.go.app;
 
 import org.apache.log4j.AppenderSkeleton;
@@ -51,3 +52,4 @@ public class WebAppender extends AppenderSkeleton {
 
 
 
+*/
